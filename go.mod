@@ -10,5 +10,8 @@ require (
 require (
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/google/pprof v0.0.0-20211214055906-6f57359322fd // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	go.opentelemetry.io/otel v1.37.0 // indirect
+	golang.org/x/sync v0.1.0 // indirect
 )
