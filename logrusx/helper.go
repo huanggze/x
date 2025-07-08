@@ -19,6 +19,10 @@ type (
 	}
 )
 
+func (l *Logger) Errorf(format string, args ...interface{}) {
+	l.Logf(logrus.ErrorLevel, format, args...)
+}
+
 func (l *Logger) WithField(key string, value interface{}) *Logger {
 	ll := *l
 	ll.Entry = l.Entry.WithField(key, value)
