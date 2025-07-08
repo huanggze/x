@@ -9,6 +9,7 @@ import (
 )
 
 type Provider struct {
+	*koanf.Koanf
 	immutables, exceptImmutables []string
 
 	flags             *pflag.FlagSet

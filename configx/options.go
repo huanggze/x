@@ -1,6 +1,7 @@
 package configx
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,14 @@ import (
 type (
 	OptionModifier func(p *Provider)
 )
+
+func WithContext(ctx context.Context) OptionModifier {
+	return func(p *Provider) {
+		for _, o := range ConfigOptionsFromContext(ctx) {
+			o(p)
+		}
+	}
+}
 
 func WithImmutables(immutables ...string) OptionModifier {
 	return func(p *Provider) {
