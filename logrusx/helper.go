@@ -16,6 +16,8 @@ type (
 		leakSensitive bool
 		redactionText string
 		opts          []Option
+		name          string
+		version       string
 	}
 )
 

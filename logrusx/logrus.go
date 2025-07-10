@@ -1,7 +1,10 @@
 package logrusx
 
 import (
+	"bytes"
 	"cmp"
+	_ "embed"
+	"io"
 	"os"
 	"time"
 
@@ -13,10 +16,16 @@ import (
 
 type (
 	options struct {
-		level     *logrus.Level
-		formatter logrus.Formatter
-		format    string
-		c         configurator
+		l             *logrus.Logger
+		level         *logrus.Level
+		formatter     logrus.Formatter
+		format        string
+		reportCaller  bool
+		exitFunc      func(int)
+		leakSensitive bool
+		redactionText string
+		hooks         []logrus.Hook
+		c             configurator
 	}
 	Option           func(*options)
 	nullConfigurator struct{}
@@ -25,6 +34,40 @@ type (
 		String(key string) string
 	}
 )
+
+//go:embed config.schema.json
+var ConfigSchema string
+
+const ConfigSchemaID = "ory://logging-config"
+
+// AddConfigSchema adds the logging schema to the compiler.
+// The interface is specified instead of `jsonschema.Compiler` to allow the use of any jsonschema library fork or version.
+func AddConfigSchema(c interface {
+	AddResource(url string, r io.Reader) error
+}) error {
+	return c.AddResource(ConfigSchemaID, bytes.NewBufferString(ConfigSchema))
+}
+
+func newLogger(parent *logrus.Logger, o *options) *logrus.Logger {
+	l := parent
+	if l == nil {
+		l = logrus.New()
+	}
+
+	if o.exitFunc != nil {
+		l.ExitFunc = o.exitFunc
+	}
+
+	for _, hook := range o.hooks {
+		l.AddHook(hook)
+	}
+
+	setLevel(l, o)
+	setFormatter(l, o)
+
+	l.ReportCaller = o.reportCaller || l.IsLevelEnabled(logrus.TraceLevel)
+	return l
+}
 
 func setLevel(l *logrus.Logger, o *options) {
 	if o.level != nil {
@@ -77,6 +120,12 @@ func WithConfigurator(c configurator) Option {
 	}
 }
 
+func UseLogger(l *logrus.Logger) Option {
+	return func(o *options) {
+		o.l = l
+	}
+}
+
 func (c *nullConfigurator) Bool(_ string) bool {
 	return false
 }
@@ -92,6 +141,20 @@ func newOptions(opts []Option) *options {
 		f(o)
 	}
 	return o
+}
+
+// New creates a new logger with all the important fields set.
+func New(name string, version string, opts ...Option) *Logger {
+	o := newOptions(opts)
+	return &Logger{
+		opts:          opts,
+		name:          name,
+		version:       version,
+		leakSensitive: o.leakSensitive || o.c.Bool("log.leak_sensitive_values"),
+		redactionText: cmp.Or(o.redactionText, `Value is sensitive and has been redacted. To see the value set config key "log.leak_sensitive_values = true" or environment variable "LOG_LEAK_SENSITIVE_VALUES=true".`),
+		Entry: newLogger(o.l, o).WithFields(logrus.Fields{
+			"audience": "application", "service_name": name, "service_version": version}),
+	}
 }
 
 func (l *Logger) UseConfig(c configurator) {
