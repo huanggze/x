@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/huanggze/x/otelx"
 	"io"
 	"reflect"
 	"sync"
@@ -293,5 +294,58 @@ func (p *Provider) watchForFileChanges(ctx context.Context, c watcherx.EventChan
 				p.reload(e)
 			}
 		}
+	}
+}
+
+func (p *Provider) StringF(key string, fallback string) string {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.Koanf.Exists(key) {
+		return fallback
+	}
+
+	return p.String(key)
+}
+
+func (p *Provider) Float64F(key string, fallback float64) (val float64) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.Koanf.Exists(key) {
+		return fallback
+	}
+
+	return p.Float64(key)
+}
+
+func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
+	return &otelx.Config{
+		ServiceName:           p.StringF("tracing.service_name", serviceName),
+		DeploymentEnvironment: p.StringF("tracing.deployment_environment", ""),
+		Provider:              p.String("tracing.provider"),
+		Providers: otelx.ProvidersConfig{
+			Jaeger: otelx.JaegerConfig{
+				Sampling: otelx.JaegerSampling{
+					ServerURL:    p.String("tracing.providers.jaeger.sampling.server_url"),
+					TraceIdRatio: p.Float64F("tracing.providers.jaeger.sampling.trace_id_ratio", 1),
+				},
+				LocalAgentAddress: p.String("tracing.providers.jaeger.local_agent_address"),
+			},
+			Zipkin: otelx.ZipkinConfig{
+				ServerURL: p.String("tracing.providers.zipkin.server_url"),
+				Sampling: otelx.ZipkinSampling{
+					SamplingRatio: p.Float64("tracing.providers.zipkin.sampling.sampling_ratio"),
+				},
+			},
+			OTLP: otelx.OTLPConfig{
+				ServerURL: p.String("tracing.providers.otlp.server_url"),
+				Insecure:  p.Bool("tracing.providers.otlp.insecure"),
+				Sampling: otelx.OTLPSampling{
+					SamplingRatio: p.Float64F("tracing.providers.otlp.sampling.sampling_ratio", 1),
+				},
+				AuthorizationHeader: p.String("tracing.providers.otlp.authorization_header"),
+			},
+		},
 	}
 }

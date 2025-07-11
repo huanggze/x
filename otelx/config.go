@@ -6,7 +6,40 @@ import (
 	"io"
 )
 
+type JaegerConfig struct {
+	LocalAgentAddress string         `json:"local_agent_address"`
+	Sampling          JaegerSampling `json:"sampling"`
+}
+
+type ZipkinConfig struct {
+	ServerURL string         `json:"server_url"`
+	Sampling  ZipkinSampling `json:"sampling"`
+}
+
+type OTLPConfig struct {
+	ServerURL           string       `json:"server_url"`
+	Insecure            bool         `json:"insecure"`
+	Sampling            OTLPSampling `json:"sampling"`
+	AuthorizationHeader string       `json:"authorization_header"`
+}
+
+type JaegerSampling struct {
+	ServerURL    string  `json:"server_url"`
+	TraceIdRatio float64 `json:"trace_id_ratio"`
+}
+
+type ZipkinSampling struct {
+	SamplingRatio float64 `json:"sampling_ratio"`
+}
+
+type OTLPSampling struct {
+	SamplingRatio float64 `json:"sampling_ratio"`
+}
+
 type ProvidersConfig struct {
+	Jaeger JaegerConfig `json:"jaeger"`
+	Zipkin ZipkinConfig `json:"zipkin"`
+	OTLP   OTLPConfig   `json:"otlp"`
 }
 
 type Config struct {
