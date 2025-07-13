@@ -21,6 +21,10 @@ type (
 	}
 )
 
+func (l *Logger) Logrus() *logrus.Logger {
+	return l.Entry.Logger
+}
+
 func (l *Logger) Errorf(format string, args ...interface{}) {
 	l.Logf(logrus.ErrorLevel, format, args...)
 }

@@ -1,11 +1,11 @@
 package otelx
 
 import (
-	"github.com/huanggze/x/logrusx"
-	"github.com/huanggze/x/stringsx"
-
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
+	
+	"github.com/huanggze/x/logrusx"
+	"github.com/huanggze/x/stringsx"
 )
 
 type Tracer struct {
@@ -66,4 +66,17 @@ func (t *Tracer) setup(name string, l *logrusx.Logger, c *Config) error {
 	}
 
 	return nil
+}
+
+// IsLoaded returns true if the tracer has been loaded.
+func (t *Tracer) IsLoaded() bool {
+	if t == nil || t.tracer == nil {
+		return false
+	}
+	return true
+}
+
+// Tracer returns the underlying OpenTelemetry tracer.
+func (t *Tracer) Tracer() trace.Tracer {
+	return t.tracer
 }
