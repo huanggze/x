@@ -26,6 +26,16 @@ type (
 	MigrationBoxOption func(*MigrationBox) *MigrationBox
 )
 
+// WithGoMigrations adds migrations that have a custom migration runner.
+// TEST THEM THOROUGHLY!
+// It will be very hard to fix a buggy migration.
+func WithGoMigrations(migrations Migrations) MigrationBoxOption {
+	return func(m *MigrationBox) *MigrationBox {
+		m.goMigrations = migrations
+		return m
+	}
+}
+
 var emptySQLReplace = regexp.MustCompile(`(?m)^(\s*--.*|\s*)$`)
 
 func isMigrationEmpty(content string) bool {
