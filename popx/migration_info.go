@@ -1,6 +1,8 @@
 package popx
 
 import (
+	"sort"
+	
 	"github.com/ory/pop/v6"
 	"github.com/pkg/errors"
 )
@@ -58,4 +60,40 @@ func (mfs Migrations) Less(i, j int) bool {
 
 func (mfs Migrations) Swap(i, j int) {
 	mfs[i], mfs[j] = mfs[j], mfs[i]
+}
+
+func (mfs Migrations) SortAndFilter(dialect string, modifiers ...func(sort.Interface) sort.Interface) Migrations {
+	// We need to sort mfs in order to push the dbType=="all" migrations
+	// to the back.
+	m := make(Migrations, len(mfs))
+	copy(m, mfs)
+	sort.Sort(m)
+
+	vsf := make(Migrations, 0, len(m))
+	for k, v := range m {
+		if v.DBType == "all" {
+			// Add "all" only if we can not find a more specific migration for the dialect.
+			var hasSpecific bool
+			for kk, vv := range m {
+				if v.Version == vv.Version && kk != k && vv.DBType == dialect {
+					hasSpecific = true
+					break
+				}
+			}
+
+			if !hasSpecific {
+				vsf = append(vsf, v)
+			}
+		} else if v.DBType == dialect {
+			vsf = append(vsf, v)
+		}
+	}
+
+	mod := sort.Interface(vsf)
+	for _, m := range modifiers {
+		mod = m(mod)
+	}
+
+	sort.Sort(mod)
+	return vsf
 }
