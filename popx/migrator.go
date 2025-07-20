@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -446,7 +447,7 @@ func (m MigrationStatuses) Write(out io.Writer, opts ...func(*writeOptions)) err
 			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t\n", mm.Version, mm.Name, mm.State, mm.Content)
 		}
 	}
-	
+
 	return w.Flush()
 }
 
@@ -461,6 +462,58 @@ func (m MigrationStatuses) HasPending() bool {
 
 func (m *Migrator) sanitizedMigrationTableName(con *pop.Connection) string {
 	return regexp.MustCompile(`\W`).ReplaceAllString(con.MigrationTableName(), "")
+}
+
+func errIsTableNotFound(err error) bool {
+	return strings.Contains(err.Error(), "no such table:") || // sqlite
+		strings.Contains(err.Error(), "Error 1146") || // MySQL
+		strings.Contains(err.Error(), "SQLSTATE 42P01") // PostgreSQL / CockroachDB
+}
+
+// Status prints out the status of applied/pending migrations.
+func (m *Migrator) Status(ctx context.Context) (MigrationStatuses, error) {
+	span, ctx := m.startSpan(ctx, MigrationStatusOpName)
+	defer span.End()
+
+	con := m.Connection.WithContext(ctx)
+
+	migrations := m.Migrations["up"].SortAndFilter(con.Dialect.Name())
+
+	if len(migrations) == 0 {
+		return nil, errors.Errorf("unable to find any migrations for dialect: %s", con.Dialect.Name())
+	}
+
+	alreadyApplied := make([]string, 0, len(migrations))
+	err := con.RawQuery(fmt.Sprintf("SELECT version FROM %s", m.sanitizedMigrationTableName(con))).All(&alreadyApplied)
+	if err != nil {
+		if errIsTableNotFound(err) {
+			// This means that no migrations have been applied and we need to apply all of them first!
+			//
+			// It also means that we can ignore this state and act as if no migrations have been applied yet.
+		} else {
+			// On any other error, we fail.
+			return nil, errors.Wrapf(err, "problem with migration")
+		}
+	}
+
+	statuses := make(MigrationStatuses, len(migrations))
+	for k, mf := range migrations {
+		statuses[k] = MigrationStatus{
+			State:   Pending,
+			Version: mf.Version,
+			Name:    mf.Name,
+			Content: mf.Content,
+		}
+
+		if slices.ContainsFunc(alreadyApplied, func(applied string) bool {
+			return applied == mf.Version || (len(mf.Version) > 14 && applied == mf.Version[:14])
+		}) {
+			statuses[k].State = Applied
+			continue
+		}
+	}
+
+	return statuses, nil
 }
 
 // DumpMigrationSchema will generate a file of the current database schema

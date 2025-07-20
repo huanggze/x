@@ -53,6 +53,18 @@ func WithLogger(l *logrusx.Logger) OptionModifier {
 	}
 }
 
+func SkipValidation() OptionModifier {
+	return func(p *Provider) {
+		p.skipValidation = true
+	}
+}
+
+func WithValue(key string, value interface{}) OptionModifier {
+	return func(p *Provider) {
+		p.forcedValues = append(p.forcedValues, tuple{Key: key, Value: value})
+	}
+}
+
 // DEPRECATED without replacement. This option is a no-op.
 func OmitKeysFromTracing(keys ...string) OptionModifier {
 	return func(*Provider) {}
