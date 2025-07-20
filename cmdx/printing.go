@@ -3,6 +3,7 @@ package cmdx
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/pflag"
 	"io"
 	"os"
 	"strings"
@@ -183,4 +184,9 @@ func printYAML(w io.Writer, v interface{}) {
 	e, err := yaml.JSONToYAML(j)
 	Must(err, "Error encoding YAML: %s", err)
 	_, _ = w.Write(e)
+}
+
+func RegisterFormatFlags(flags *pflag.FlagSet) {
+	RegisterNoiseFlags(flags)
+	flags.String(FlagFormat, string(FormatDefault), fmt.Sprintf("Set the output format. One of %s, %s, %s, %s, %s and %s.", FormatTable, FormatJSON, FormatYAML, FormatJSONPretty, FormatJSONPath, FormatJSONPointer))
 }
