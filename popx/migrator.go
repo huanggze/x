@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"regexp"
 	"slices"
 	"sort"
+	"text/tabwriter"
 	"time"
 
 	"github.com/cockroachdb/cockroach-go/v2/crdb"
@@ -17,12 +19,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/huanggze/x/cmdx"
 	"github.com/huanggze/x/logrusx"
 	"github.com/huanggze/x/otelx"
 	"github.com/ory/pop/v6"
 )
 
 const (
+	Pending          = "Pending"
+	Applied          = "Applied"
 	tracingComponent = "github.com/ory/x/popx"
 )
 
@@ -385,6 +390,73 @@ func (m *Migrator) CreateSchemaMigrations(ctx context.Context) error {
 
 	m.l.WithField("migration_table", mtn).Debug("Migration tables exist and are up to date.")
 	return nil
+}
+
+type MigrationStatus struct {
+	State   string `json:"state"`
+	Version string `json:"version"`
+	Name    string `json:"name"`
+	Content string `json:"content"`
+}
+
+type MigrationStatuses []MigrationStatus
+
+var _ cmdx.Table = (MigrationStatuses)(nil)
+
+func (m MigrationStatuses) Header() []string {
+	return []string{"Version", "Name", "Status"}
+}
+
+func (m MigrationStatuses) Table() [][]string {
+	t := make([][]string, len(m))
+	for i, s := range m {
+		t[i] = []string{s.Version, s.Name, s.State}
+	}
+	return t
+}
+
+func (m MigrationStatuses) Interface() interface{} {
+	return m
+}
+
+func (m MigrationStatuses) Len() int {
+	return len(m)
+}
+
+type writeOptions struct {
+	writeContents bool
+}
+
+// In the context of a cobra.Command, use cmdx.PrintTable instead.
+func (m MigrationStatuses) Write(out io.Writer, opts ...func(*writeOptions)) error {
+	o := &writeOptions{}
+	for _, f := range opts {
+		f(o)
+	}
+
+	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', tabwriter.TabIndent)
+	if !o.writeContents {
+		_, _ = fmt.Fprintln(w, "Version\tName\tStatus\t")
+		for _, mm := range m {
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t\n", mm.Version, mm.Name, mm.State)
+		}
+	} else {
+		_, _ = fmt.Fprintln(w, "Version\tName\tStatus\tContent\t")
+		for _, mm := range m {
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t\n", mm.Version, mm.Name, mm.State, mm.Content)
+		}
+	}
+	
+	return w.Flush()
+}
+
+func (m MigrationStatuses) HasPending() bool {
+	for _, mm := range m {
+		if mm.State == Pending {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Migrator) sanitizedMigrationTableName(con *pop.Connection) string {

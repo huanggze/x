@@ -2,6 +2,17 @@ package errorsx
 
 import "github.com/pkg/errors"
 
+// WithStack mirror pkg/errors.WithStack but does not wrap existing stack
+// traces.
+// Deprecated: you should probably use errors.WithStack instead and only annotate stacks when it makes sense.
+func WithStack(err error) error {
+	if e, ok := err.(StackTracer); ok && len(e.StackTrace()) > 0 {
+		return err
+	}
+
+	return errors.WithStack(err)
+}
+
 // StatusCodeCarrier can be implemented by an error to support setting status codes in the error itself.
 type StatusCodeCarrier interface {
 	// StatusCode returns the status code of this error.
