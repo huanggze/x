@@ -62,6 +62,16 @@ func NewMiddlewareFromLogger(logger *logrusx.Logger, name string) *Middleware {
 	}
 }
 
+// ExcludePaths adds new URL paths to be ignored during logging. The URL u is parsed, hence the returned error
+func (m *Middleware) ExcludePaths(paths ...string) *Middleware {
+	for _, path := range paths {
+		m.Lock()
+		m.silencePaths[path] = true
+		m.Unlock()
+	}
+	return m
+}
+
 // DefaultBefore is the default func assigned to *Middleware.Before
 func DefaultBefore(entry *logrusx.Logger, req *http.Request, remoteAddr string) *logrusx.Logger {
 	return entry.WithRequest(req)

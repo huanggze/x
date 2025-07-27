@@ -110,6 +110,12 @@ func (l *Logger) Errorf(format string, args ...interface{}) {
 	l.Logf(logrus.ErrorLevel, format, args...)
 }
 
+func (l *Logger) WithFields(f logrus.Fields) *Logger {
+	ll := *l
+	ll.Entry = l.Entry.WithFields(f)
+	return &ll
+}
+
 func (l *Logger) WithField(key string, value interface{}) *Logger {
 	ll := *l
 	ll.Entry = l.Entry.WithField(key, value)
