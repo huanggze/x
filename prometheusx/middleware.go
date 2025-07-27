@@ -1,0 +1,58 @@
+package prometheusx
+
+import (
+	"net/http"
+	"strings"
+	"sync"
+
+	"github.com/julienschmidt/httprouter"
+)
+
+type MetricsManager struct {
+	prometheusMetrics *Metrics
+	routers           struct {
+		data []*httprouter.Router
+		sync.Mutex
+	}
+}
+
+// Main middleware method to collect metrics for Prometheus.
+func (pmm *MetricsManager) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	pmm.prometheusMetrics.Instrument(rw, next, pmm.getLabelForPath(r))(rw, r)
+}
+
+func (pmm *MetricsManager) getLabelForPath(r *http.Request) string {
+	// looking for a match in one of registered routers
+	pmm.routers.Lock()
+	defer pmm.routers.Unlock()
+	for _, router := range pmm.routers.data {
+		handler, params, _ := router.Lookup(r.Method, r.URL.Path)
+		if handler != nil {
+			return reconstructEndpoint(r.URL.Path, params)
+		}
+	}
+	return "{unmatched}"
+}
+
+// To reduce cardinality of labels, values of matched path parameters must be replaced with {param}
+func reconstructEndpoint(path string, params httprouter.Params) string {
+	// if map is empty, then nothing to change in the path
+	if len(params) == 0 {
+		return path
+	}
+
+	// construct a list of parameter values
+	paramValues := make(map[string]struct{}, len(params))
+	for _, param := range params {
+		paramValues[param.Value] = struct{}{}
+	}
+
+	parts := strings.Split(path, "/")
+	for index, part := range parts {
+		if _, ok := paramValues[part]; ok {
+			parts[index] = "{param}"
+		}
+	}
+
+	return strings.Join(parts, "/")
+}

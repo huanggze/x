@@ -1,6 +1,8 @@
 package metricsx
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"math"
 	"os"
 	"runtime"
@@ -34,6 +36,12 @@ type Service struct {
 	mem *MemoryStatistics
 }
 
+// Hash returns a hashed string of the value.
+func Hash(value string) string {
+	sha := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sha[:])
+}
+
 // Options configures the metrics service.
 type Options struct {
 	// Service represents the service name, for example "ory-hydra".
@@ -53,6 +61,9 @@ type Options struct {
 	// WriteKey is the segment API key.
 	WriteKey string
 
+	// WhitelistedPaths represents a list of paths that can be transmitted in clear text to segment.
+	WhitelistedPaths []string
+	
 	// BuildVersion represents the build version.
 	BuildVersion string
 
