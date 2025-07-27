@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/huanggze/x/otelx"
 	"io"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/posflag"
@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/huanggze/x/logrusx"
+	"github.com/huanggze/x/otelx"
 	"github.com/huanggze/x/watcherx"
 	"github.com/ory/jsonschema/v3"
 )
@@ -297,6 +298,33 @@ func (p *Provider) watchForFileChanges(ctx context.Context, c watcherx.EventChan
 	}
 }
 
+func (p *Provider) Set(key string, value interface{}) error {
+	p.l.Lock()
+	defer p.l.Unlock()
+
+	p.forcedValues = append(p.forcedValues, tuple{Key: key, Value: value})
+	p.providers = append(p.providers, NewKoanfConfmap([]tuple{{Key: key, Value: value}}))
+
+	k, err := p.newKoanf()
+	if err != nil {
+		return err
+	}
+
+	p.replaceKoanf(k)
+	return nil
+}
+
+func (p *Provider) BoolF(key string, fallback bool) bool {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.Koanf.Exists(key) {
+		return fallback
+	}
+
+	return p.Bool(key)
+}
+
 func (p *Provider) StringF(key string, fallback string) string {
 	p.l.RLock()
 	defer p.l.RUnlock()
@@ -308,6 +336,28 @@ func (p *Provider) StringF(key string, fallback string) string {
 	return p.String(key)
 }
 
+func (p *Provider) StringsF(key string, fallback []string) (val []string) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.Koanf.Exists(key) {
+		return fallback
+	}
+
+	return p.Strings(key)
+}
+
+func (p *Provider) IntF(key string, fallback int) (val int) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.Koanf.Exists(key) {
+		return fallback
+	}
+
+	return p.Int(key)
+}
+
 func (p *Provider) Float64F(key string, fallback float64) (val float64) {
 	p.l.RLock()
 	defer p.l.RUnlock()
@@ -317,6 +367,17 @@ func (p *Provider) Float64F(key string, fallback float64) (val float64) {
 	}
 
 	return p.Float64(key)
+}
+
+func (p *Provider) DurationF(key string, fallback time.Duration) (val time.Duration) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.Koanf.Exists(key) {
+		return fallback
+	}
+
+	return p.Duration(key)
 }
 
 func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
