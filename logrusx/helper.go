@@ -34,6 +34,12 @@ func (l *Logger) Logrus() *logrus.Logger {
 	return l.Entry.Logger
 }
 
+func (l *Logger) NewEntry() *Logger {
+	ll := *l
+	ll.Entry = logrus.NewEntry(l.Logger)
+	return &ll
+}
+
 func (l *Logger) WithContext(ctx context.Context) *Logger {
 	ll := *l
 	ll.Entry = l.Logger.WithContext(ctx)

@@ -72,6 +72,51 @@ func (m *Middleware) ExcludePaths(paths ...string) *Middleware {
 	return m
 }
 
+func (m *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	if m.Before == nil {
+		m.Before = DefaultBefore
+	}
+
+	if m.After == nil {
+		m.After = DefaultAfter
+	}
+
+	logLevel := m.logLevel
+	m.RLock()
+	if _, ok := m.silencePaths[r.URL.Path]; ok {
+		logLevel = logrus.TraceLevel
+	}
+	m.RUnlock()
+
+	start := m.clock.Now()
+
+	// Try to get the real IP
+	remoteAddr := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		remoteAddr = realIP
+	}
+
+	entry := m.Logger.NewEntry()
+
+	entry = m.Before(entry, r, remoteAddr)
+
+	if m.logStarting {
+		entry.Log(logLevel, "started handling request")
+	}
+
+	nrw, ok := rw.(negroni.ResponseWriter)
+	if !ok {
+		nrw = negroni.NewResponseWriter(rw)
+	}
+
+	r = r.WithContext(WithEnableExternalLatencyMeasurement(r.Context()))
+	next(nrw, r)
+
+	latency := m.clock.Since(start)
+
+	m.After(entry, r, nrw, latency, m.Name).Log(logLevel, "completed handling request")
+}
+
 // DefaultBefore is the default func assigned to *Middleware.Before
 func DefaultBefore(entry *logrusx.Logger, req *http.Request, remoteAddr string) *logrusx.Logger {
 	return entry.WithRequest(req)

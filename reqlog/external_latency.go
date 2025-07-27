@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+// WithEnableExternalLatencyMeasurement returns a context that measures external latencies.
+func WithEnableExternalLatencyMeasurement(ctx context.Context) context.Context {
+	container := contextContainer{
+		latencies: make([]externalLatency, 0),
+	}
+	return context.WithValue(ctx, externalLatencyKey, &container)
+}
+
 // totalExternalLatency returns the total duration of all external calls.
 func totalExternalLatency(ctx context.Context) (total time.Duration) {
 	if _, ok := ctx.Value(disableExternalLatencyMeasurement).(bool); ok {
