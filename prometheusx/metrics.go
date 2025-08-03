@@ -21,6 +21,9 @@ type Metrics struct {
 	handlerStatuses *prometheus.CounterVec
 }
 
+const HTTPMetrics = "http"
+const GRPCMetrics = "grpc"
+
 // NewMetrics creates new custom Prometheus metrics
 func NewMetrics(app, metricsPrefix, version, hash, date string) *Metrics {
 	labels := map[string]string{
