@@ -1,9 +1,11 @@
 package prometheusx
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
+	grpcPrometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -17,6 +19,87 @@ type Metrics struct {
 	responseSize    *prometheus.HistogramVec
 	requestSize     *prometheus.HistogramVec
 	handlerStatuses *prometheus.CounterVec
+}
+
+// NewMetrics creates new custom Prometheus metrics
+func NewMetrics(app, metricsPrefix, version, hash, date string) *Metrics {
+	labels := map[string]string{
+		"app":       app,
+		"version":   version,
+		"hash":      hash,
+		"buildTime": date,
+	}
+
+	if metricsPrefix != "" {
+		metricsPrefix += "_"
+	}
+
+	pm := &Metrics{
+		responseTime: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:        metricsPrefix + "response_time_seconds",
+				Help:        "Description",
+				ConstLabels: labels,
+			},
+			[]string{"endpoint"},
+		),
+		totalRequests: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        metricsPrefix + "requests_total",
+			Help:        "number of requests",
+			ConstLabels: labels,
+		}, []string{"code", "method", "endpoint"}),
+		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        metricsPrefix + "requests_duration_seconds",
+			Help:        "duration of a requests in seconds",
+			ConstLabels: labels,
+		}, []string{"code", "method", "endpoint"}),
+		responseSize: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        metricsPrefix + "response_size_bytes",
+			Help:        "size of the responses in bytes",
+			ConstLabels: labels,
+		}, []string{"code", "method"}),
+		requestSize: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:        metricsPrefix + "requests_size_bytes",
+			Help:        "size of the requests in bytes",
+			ConstLabels: labels,
+		}, []string{"code", "method"}),
+		handlerStatuses: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:        metricsPrefix + "requests_statuses_total",
+			Help:        "count number of responses per status",
+			ConstLabels: labels,
+		}, []string{"method", "status_bucket"}),
+	}
+
+	err := prometheus.Register(pm)
+	if e := new(prometheus.AlreadyRegisteredError); errors.As(err, e) {
+		return pm
+	} else if err != nil {
+		panic(err)
+	}
+
+	grpcPrometheus.EnableHandlingTimeHistogram()
+
+	return pm
+}
+
+// Describe implements prometheus Collector interface.
+func (h *Metrics) Describe(in chan<- *prometheus.Desc) {
+	h.duration.Describe(in)
+	h.totalRequests.Describe(in)
+	h.requestSize.Describe(in)
+	h.responseSize.Describe(in)
+	h.handlerStatuses.Describe(in)
+	h.responseTime.Describe(in)
+}
+
+// Collect implements prometheus Collector interface.
+func (h *Metrics) Collect(in chan<- prometheus.Metric) {
+	h.duration.Collect(in)
+	h.totalRequests.Collect(in)
+	h.requestSize.Collect(in)
+	h.responseSize.Collect(in)
+	h.handlerStatuses.Collect(in)
+	h.responseTime.Collect(in)
 }
 
 func (h Metrics) instrumentHandlerStatusBucket(next http.Handler) http.HandlerFunc {

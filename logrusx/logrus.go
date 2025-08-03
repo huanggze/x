@@ -5,6 +5,7 @@ import (
 	"cmp"
 	_ "embed"
 	"io"
+	"net/http"
 	"os"
 	"time"
 
@@ -163,4 +164,16 @@ func (l *Logger) UseConfig(c configurator) {
 	o := newOptions(append(l.opts, WithConfigurator(c)))
 	setLevel(l.Entry.Logger, o)
 	setFormatter(l.Entry.Logger, o)
+}
+
+func (l *Logger) ReportError(r *http.Request, code int, err error, args ...interface{}) {
+	logger := l.WithError(err).WithRequest(r).WithField("http_response", map[string]interface{}{
+		"status_code": code,
+	})
+	switch {
+	case code < 500:
+		logger.Info(args...)
+	default:
+		logger.Error(args...)
+	}
 }

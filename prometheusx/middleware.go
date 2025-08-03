@@ -16,6 +16,15 @@ type MetricsManager struct {
 	}
 }
 
+// NewMetricsManagerWithPrefix creates MetricsManager that uses metricsPrefix parameters as a prefix
+// for all metrics registered within this middleware. Constants HttpMetrics or GrpcMetrics can be used
+// respectively. Setting empty string in metricsPrefix will be equivalent to calling NewMetricsManager.
+func NewMetricsManagerWithPrefix(app, metricsPrefix, version, hash, buildTime string) *MetricsManager {
+	return &MetricsManager{
+		prometheusMetrics: NewMetrics(app, metricsPrefix, version, hash, buildTime),
+	}
+}
+
 // Main middleware method to collect metrics for Prometheus.
 func (pmm *MetricsManager) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	pmm.prometheusMetrics.Instrument(rw, next, pmm.getLabelForPath(r))(rw, r)
