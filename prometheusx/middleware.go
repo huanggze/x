@@ -21,6 +21,12 @@ func (pmm *MetricsManager) ServeHTTP(rw http.ResponseWriter, r *http.Request, ne
 	pmm.prometheusMetrics.Instrument(rw, next, pmm.getLabelForPath(r))(rw, r)
 }
 
+func (pmm *MetricsManager) RegisterRouter(router *httprouter.Router) {
+	pmm.routers.Lock()
+	defer pmm.routers.Unlock()
+	pmm.routers.data = append(pmm.routers.data, router)
+}
+
 func (pmm *MetricsManager) getLabelForPath(r *http.Request) string {
 	// looking for a match in one of registered routers
 	pmm.routers.Lock()

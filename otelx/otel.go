@@ -2,8 +2,9 @@ package otelx
 
 import (
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/embedded"
 	"go.opentelemetry.io/otel/trace/noop"
-	
+
 	"github.com/huanggze/x/logrusx"
 	"github.com/huanggze/x/stringsx"
 )
@@ -79,4 +80,23 @@ func (t *Tracer) IsLoaded() bool {
 // Tracer returns the underlying OpenTelemetry tracer.
 func (t *Tracer) Tracer() trace.Tracer {
 	return t.tracer
+}
+
+// Provider returns a TracerProvider which in turn yields this tracer unmodified.
+func (t *Tracer) Provider() trace.TracerProvider {
+	return tracerProvider{t: t.Tracer()}
+}
+
+type tracerProvider struct {
+	embedded.TracerProvider
+	t trace.Tracer
+}
+
+func (tp tracerProvider) tracerProvider() {}
+
+var _ trace.TracerProvider = tracerProvider{}
+
+// Tracer implements trace.TracerProvider.
+func (tp tracerProvider) Tracer(name string, options ...trace.TracerOption) trace.Tracer {
+	return tp.t
 }

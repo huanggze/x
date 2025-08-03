@@ -21,7 +21,7 @@ type StatusCodeCarrier interface {
 
 // RequestIDCarrier can be implemented by an error to support error contexts.
 type RequestIDCarrier interface {
-	// RequestID returns the ID of the request that caused the error, if applicable.
+	// RequestID returns the UserID of the request that caused the error, if applicable.
 	RequestID() string
 }
 
@@ -39,7 +39,7 @@ type DebugCarrier interface {
 
 // StatusCarrier can be implemented by an error to support error contexts.
 type StatusCarrier interface {
-	// ID returns the error id, if applicable.
+	// UserID returns the error id, if applicable.
 	Status() string
 }
 

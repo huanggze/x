@@ -1,12 +1,15 @@
 package metricsx
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"math"
+	"net/http"
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 
 	"github.com/huanggze/x/cmdx"
 	"github.com/huanggze/x/configx"
+	"github.com/huanggze/x/httpx"
 	"github.com/huanggze/x/logrusx"
 	"github.com/huanggze/x/resilience"
 	"github.com/ory/analytics-go/v5"
@@ -63,7 +67,7 @@ type Options struct {
 
 	// WhitelistedPaths represents a list of paths that can be transmitted in clear text to segment.
 	WhitelistedPaths []string
-	
+
 	// BuildVersion represents the build version.
 	BuildVersion string
 
@@ -244,4 +248,54 @@ func (sw *Service) Track() {
 		}
 		time.Sleep(sw.o.MemoryInterval)
 	}
+}
+
+// ServeHTTP is a middleware for sending meta information to segment.
+func (sw *Service) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	var start time.Time
+	if !sw.optOut {
+		start = time.Now()
+	}
+
+	next(rw, r)
+
+	if sw.optOut {
+		return
+	}
+
+	latency := time.Since(start).Milliseconds()
+	path := sw.anonymizePath(r.URL.Path)
+
+	// Collecting request info
+	stat, _ := httpx.GetResponseMeta(rw)
+
+	if err := sw.c.Enqueue(analytics.Page{
+		InstanceId:   sw.instanceId,
+		DeploymentId: sw.o.DeploymentId,
+		Project:      sw.o.Service,
+
+		UrlHost:        cmp.Or(r.Header.Get("X-Forwarded-Host"), r.Host),
+		UrlPath:        path,
+		RequestCode:    stat,
+		RequestLatency: int(latency),
+	}); err != nil {
+		sw.l.WithError(err).Debug("Could not commit anonymized telemetry data")
+		// do nothing...
+	}
+}
+
+func (sw *Service) anonymizePath(path string) string {
+	paths := sw.o.WhitelistedPaths
+	path = strings.ToLower(path)
+
+	for _, p := range paths {
+		p = strings.ToLower(p)
+		if path == p {
+			return p
+		} else if len(path) > len(p) && path[:len(p)+1] == p+"/" {
+			return p
+		}
+	}
+
+	return "/"
 }
