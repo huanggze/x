@@ -1,6 +1,7 @@
 package semconv
 
 import (
+	"github.com/gofrs/uuid"
 	otelattr "go.opentelemetry.io/otel/attribute"
 
 	"github.com/huanggze/x/httpx"
@@ -19,11 +20,22 @@ func (a AttributeKey) String() string {
 }
 
 const (
+	AttributeKeyIdentityID         AttributeKey = "IdentityID"
+	AttributeKeyNID                AttributeKey = "ProjectID"
 	AttributeKeyClientIP           AttributeKey = "ClientIP"
 	AttributeKeyGeoLocationCity    AttributeKey = "GeoLocationCity"
 	AttributeKeyGeoLocationRegion  AttributeKey = "GeoLocationRegion"
 	AttributeKeyGeoLocationCountry AttributeKey = "GeoLocationCountry"
+	AttributeKeyWorkspace          AttributeKey = "WorkspaceID"
+	AttributeKeySubscriptionID     AttributeKey = "SubscriptionID"
+	AttributeKeyProjectEnvironment AttributeKey = "ProjectEnvironment"
+	AttributeKeyWorkspaceAPIKeyID  AttributeKey = "WorkspaceAPIKeyID"
+	AttributeKeyProjectAPIKeyID    AttributeKey = "ProjectAPIKeyID"
 )
+
+func AttrIdentityID[V string | uuid.UUID](val V) otelattr.KeyValue {
+	return otelattr.String(AttributeKeyIdentityID.String(), uuidOrString(val))
+}
 
 func AttrClientIP(val string) otelattr.KeyValue {
 	return otelattr.String(AttributeKeyClientIP.String(), val)
@@ -43,4 +55,14 @@ func AttrGeoLocation(val httpx.GeoLocation) []otelattr.KeyValue {
 	}
 
 	return geoLocationAttributes
+}
+
+func uuidOrString[V string | uuid.UUID](val V) string {
+	switch val := any(val).(type) {
+	case string:
+		return val
+	case uuid.UUID:
+		return val.String()
+	}
+	panic("unreachable")
 }
