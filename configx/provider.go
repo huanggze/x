@@ -382,6 +382,17 @@ func (p *Provider) DurationF(key string, fallback time.Duration) (val time.Durat
 	return p.Duration(key)
 }
 
+func (p *Provider) GetF(key string, fallback interface{}) (val interface{}) {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.Exists(key) {
+		return fallback
+	}
+
+	return p.Get(key)
+}
+
 func (p *Provider) CORS(prefix string, defaults cors.Options) (cors.Options, bool) {
 	if len(prefix) > 0 {
 		prefix = strings.TrimRight(prefix, ".") + "."
