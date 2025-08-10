@@ -1,6 +1,7 @@
 package otelx
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -13,6 +14,28 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// WithSpan wraps execution of f in a span identified by name.
+//
+// If f returns an error or panics, the span status will be set to the error
+// state. The error (or panic) will be propagated unmodified.
+//
+// f will be wrapped in a child span by default. To make a new root span
+// instead, pass the trace.WithNewRoot() option.
+func WithSpan(ctx context.Context, name string, f func(context.Context) error, opts ...trace.SpanStartOption) (err error) {
+	ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer("").Start(ctx, name, opts...)
+	defer func() {
+		defer span.End()
+		if r := recover(); r != nil {
+			setErrorStatusPanic(span, r)
+			panic(r)
+		} else if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+			setErrorTags(span, err)
+		}
+	}()
+	return f(ctx)
+}
 
 // End finishes span, and automatically sets the error state if *err is not nil
 // or during panicking.
