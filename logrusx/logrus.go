@@ -115,6 +115,12 @@ func setFormatter(l *logrus.Logger, o *options) {
 	}
 }
 
+func ForceLevel(level logrus.Level) Option {
+	return func(o *options) {
+		o.level = &level
+	}
+}
+
 func WithConfigurator(c configurator) Option {
 	return func(o *options) {
 		o.c = c
