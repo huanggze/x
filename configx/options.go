@@ -65,6 +65,14 @@ func WithValue(key string, value interface{}) OptionModifier {
 	}
 }
 
+func WithValues(values map[string]interface{}) OptionModifier {
+	return func(p *Provider) {
+		for key, value := range values {
+			p.forcedValues = append(p.forcedValues, tuple{Key: key, Value: value})
+		}
+	}
+}
+
 // DEPRECATED without replacement. This option is a no-op.
 func OmitKeysFromTracing(keys ...string) OptionModifier {
 	return func(*Provider) {}
