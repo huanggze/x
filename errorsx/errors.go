@@ -2,6 +2,33 @@ package errorsx
 
 import "github.com/pkg/errors"
 
+// Cause returns the underlying cause of the error, if possible.
+// An error value has a cause if it implements the following
+// interface:
+//
+//	type causer interface {
+//	       Cause() error
+//	}
+//
+// If the error does not implement Cause, the original error will
+// be returned. If the error is nil, nil will be returned without further
+// investigation.
+// Deprecated: you should probably use errors.As instead.
+func Cause(err error) error {
+	type causer interface {
+		Cause() error
+	}
+
+	for err != nil {
+		cause, ok := err.(causer)
+		if !ok || cause.Cause() == nil {
+			break
+		}
+		err = cause.Cause()
+	}
+	return err
+}
+
 // WithStack mirror pkg/errors.WithStack but does not wrap existing stack
 // traces.
 // Deprecated: you should probably use errors.WithStack instead and only annotate stacks when it makes sense.
