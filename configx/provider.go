@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/inhies/go-bytesize"
 	"github.com/knadh/koanf/parsers/json"
 	"github.com/knadh/koanf/providers/posflag"
 	"github.com/knadh/koanf/v2"
@@ -380,6 +381,34 @@ func (p *Provider) DurationF(key string, fallback time.Duration) (val time.Durat
 	}
 
 	return p.Duration(key)
+}
+
+func (p *Provider) ByteSizeF(key string, fallback bytesize.ByteSize) bytesize.ByteSize {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	if !p.Koanf.Exists(key) {
+		return fallback
+	}
+
+	switch v := p.Koanf.Get(key).(type) {
+	case string:
+		// this type usually comes from user input
+		dec, err := bytesize.Parse(v)
+		if err != nil {
+			p.logger.WithField("key", key).WithField("raw_value", v).WithError(err).Warnf("error parsing byte size value, using fallback of %s", fallback)
+			return fallback
+		}
+		return dec
+	case float64:
+		// this type comes from json.Unmarshal
+		return bytesize.ByteSize(v)
+	case bytesize.ByteSize:
+		return v
+	default:
+		p.logger.WithField("key", key).WithField("raw_type", fmt.Sprintf("%T", v)).WithField("raw_value", fmt.Sprintf("%+v", v)).Errorf("error converting byte size value because of unknown type, using fallback of %s", fallback)
+		return fallback
+	}
 }
 
 func (p *Provider) GetF(key string, fallback interface{}) (val interface{}) {
