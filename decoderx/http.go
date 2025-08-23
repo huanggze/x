@@ -3,7 +3,9 @@ package decoderx
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -76,6 +78,55 @@ const (
 )
 
 var errKeyNotFound = errors.New("key not found")
+
+// HTTPKeepRequestBody configures the HTTP decoder to allow other
+// HTTP request body readers to read the body as well by keeping
+// the data in memory.
+func HTTPKeepRequestBody(keep bool) HTTPDecoderOption {
+	return func(o *httpDecoderOptions) {
+		o.keepRequestBody = keep
+	}
+}
+
+// HTTPDecoderSetValidatePayloads sets if payloads should be validated or not.
+func HTTPDecoderSetValidatePayloads(validate bool) HTTPDecoderOption {
+	return func(o *httpDecoderOptions) {
+		o.jsonSchemaValidate = validate
+		o.keepRequestBody = true
+	}
+}
+
+// HTTPDecoderJSONFollowsFormFormat if set tells the decoder that JSON follows the same conventions
+// as the form decoder, meaning `{"foo.bar": "..."}` is translated to `{"foo": {"bar": "..."}}`.
+func HTTPDecoderJSONFollowsFormFormat() HTTPDecoderOption {
+	return func(o *httpDecoderOptions) {
+		o.expectJSONFlattened = true
+		o.keepRequestBody = true
+	}
+}
+
+// HTTPDecoderAllowedMethods sets the allowed HTTP methods. Defaults are POST, PUT, PATCH.
+func HTTPDecoderAllowedMethods(method ...string) HTTPDecoderOption {
+	return func(o *httpDecoderOptions) {
+		o.allowedHTTPMethods = method
+	}
+}
+
+// HTTPRawJSONSchemaCompiler uses a JSON Schema Compiler with the provided JSON Schema in raw byte form.
+func HTTPRawJSONSchemaCompiler(raw []byte) (HTTPDecoderOption, error) {
+	compiler := jsonschema.NewCompiler()
+	id := fmt.Sprintf("%x.json", sha256.Sum256(raw))
+	if err := compiler.AddResource(id, bytes.NewReader(raw)); err != nil {
+		return nil, err
+	}
+	compiler.ExtractAnnotations = true
+
+	return func(o *httpDecoderOptions) {
+		o.jsonSchemaCompiler = compiler
+		o.jsonSchemaRef = id
+		o.jsonSchemaValidate = true
+	}, nil
+}
 
 func newHTTPDecoderOptions(fs []HTTPDecoderOption) *httpDecoderOptions {
 	o := &httpDecoderOptions{
