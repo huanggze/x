@@ -2,11 +2,14 @@ package jsonnetsecure
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
 	"runtime"
 	"testing"
+
+	"github.com/google/go-jsonnet"
 )
 
 type (
@@ -17,7 +20,39 @@ type (
 		TLACode(key string, val string)
 		TLAVar(key string, val string)
 	}
+
+	kv struct {
+		Key, Value string
+	}
+	processParameters struct {
+		Filename, Snippet                    string
+		TLACodes, TLAVars, ExtCodes, ExtVars []kv
+	}
 )
+
+func MakeSecureVM(opts ...Option) VM {
+	options := newVMOptions()
+	for _, o := range opts {
+		o(options)
+	}
+
+	if options.pool != nil {
+		return NewProcessPoolVM(options)
+	} else {
+		vm := jsonnet.MakeVM()
+		vm.Importer(new(ErrorImporter))
+		return vm
+	}
+}
+
+// ErrorImporter errors when calling "import".
+type ErrorImporter struct{}
+
+// Import fetches data from a map entry.
+// All paths are treated as absolute keys.
+func (importer *ErrorImporter) Import(importedFrom, importedPath string) (contents jsonnet.Contents, foundAt string, err error) {
+	return jsonnet.Contents{}, "", fmt.Errorf("import not available %v", importedPath)
+}
 
 func JsonnetTestBinary(t testing.TB) string {
 	t.Helper()

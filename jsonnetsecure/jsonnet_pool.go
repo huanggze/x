@@ -3,9 +3,12 @@ package jsonnetsecure
 import (
 	"bufio"
 	"context"
+	"encoding/json"
+	"go.opentelemetry.io/otel/attribute"
 	"io"
 	"math"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/jackc/puddle/v2"
@@ -17,6 +20,14 @@ import (
 )
 
 type (
+	processPoolVM struct {
+		path   string
+		args   []string
+		ctx    context.Context
+		params processParameters
+		pool   *pool
+	}
+
 	Pool interface {
 		Close()
 		private()
@@ -179,4 +190,70 @@ func (w worker) eval(ctx context.Context, processParams []byte) (output string, 
 	case err := <-w.stderr:
 		return "", errors.New(err)
 	}
+}
+
+func (vm *processPoolVM) EvaluateAnonymousSnippet(filename string, snippet string) (_ string, err error) {
+	tracer := trace.SpanFromContext(vm.ctx).TracerProvider().Tracer("")
+	ctx, span := tracer.Start(vm.ctx, "jsonnetsecure.processPoolVM.EvaluateAnonymousSnippet", trace.WithAttributes(attribute.String("filename", filename)))
+	defer otelx.End(span, &err)
+
+	params := vm.params
+	params.Filename = filename
+	params.Snippet = snippet
+	pp, err := json.Marshal(params)
+	if err != nil {
+		return "", errors.Wrap(err, "jsonnetsecure: marshal")
+	}
+
+	ctx = context.WithValue(ctx, contextValuePath, vm.path)
+	ctx = context.WithValue(ctx, contextValueArgs, vm.args)
+	worker, err := vm.pool.puddle.Acquire(ctx)
+	if err != nil {
+		return "", errors.Wrap(err, "jsonnetsecure: acquire")
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+	result, err := worker.Value().eval(ctx, pp)
+	if err != nil {
+		worker.Destroy()
+		return "", errors.Wrap(err, "jsonnetsecure: eval")
+	} else {
+		worker.Release()
+	}
+
+	if strings.HasPrefix(result, "ERROR: ") {
+		return "", errors.New("jsonnetsecure: " + result)
+	}
+
+	return result, nil
+}
+
+func NewProcessPoolVM(opts *vmOptions) VM {
+	ctx := opts.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return &processPoolVM{
+		path: opts.jsonnetBinaryPath,
+		args: opts.args,
+		ctx:  ctx,
+		pool: opts.pool,
+	}
+}
+
+func (vm *processPoolVM) ExtCode(key string, val string) {
+	vm.params.ExtCodes = append(vm.params.ExtCodes, kv{key, val})
+}
+
+func (vm *processPoolVM) ExtVar(key string, val string) {
+	vm.params.ExtVars = append(vm.params.ExtVars, kv{key, val})
+}
+
+func (vm *processPoolVM) TLACode(key string, val string) {
+	vm.params.TLACodes = append(vm.params.TLACodes, kv{key, val})
+}
+
+func (vm *processPoolVM) TLAVar(key string, val string) {
+	vm.params.TLAVars = append(vm.params.TLAVars, kv{key, val})
 }

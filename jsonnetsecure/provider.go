@@ -2,6 +2,7 @@ package jsonnetsecure
 
 import (
 	"context"
+	"os"
 	"runtime"
 	"testing"
 )
@@ -20,10 +21,53 @@ type (
 		jsonnetBinary string
 		pool          Pool
 	}
+
+	vmOptions struct {
+		jsonnetBinaryPath string
+		args              []string
+		ctx               context.Context
+		pool              *pool
+	}
+
+	Option func(o *vmOptions)
 )
+
+func newVMOptions() *vmOptions {
+	jsonnetBinaryPath, _ := os.Executable()
+	return &vmOptions{
+		jsonnetBinaryPath: jsonnetBinaryPath,
+		ctx:               context.Background(),
+	}
+}
+
+func WithProcessPool(p Pool) Option {
+	return func(o *vmOptions) {
+		pool, _ := p.(*pool)
+		o.pool = pool
+	}
+}
+
+func WithJsonnetBinary(jsonnetBinaryPath string) Option {
+	return func(o *vmOptions) {
+		o.jsonnetBinaryPath = jsonnetBinaryPath
+	}
+}
+
+func WithProcessArgs(args ...string) Option {
+	return func(o *vmOptions) {
+		o.args = args
+	}
+}
 
 func NewTestProvider(t testing.TB) *TestProvider {
 	pool := NewProcessPool(runtime.GOMAXPROCS(0))
 	t.Cleanup(pool.Close)
 	return &TestProvider{JsonnetTestBinary(t), pool}
+}
+
+func (p *TestProvider) JsonnetVM(ctx context.Context) (VM, error) {
+	return MakeSecureVM(
+		WithProcessPool(p.pool),
+		WithJsonnetBinary(p.jsonnetBinary),
+	), nil
 }
