@@ -128,6 +128,15 @@ func HTTPRawJSONSchemaCompiler(raw []byte) (HTTPDecoderOption, error) {
 	}, nil
 }
 
+// MustHTTPRawJSONSchemaCompiler uses HTTPRawJSONSchemaCompiler and panics on error.
+func MustHTTPRawJSONSchemaCompiler(raw []byte) HTTPDecoderOption {
+	f, err := HTTPRawJSONSchemaCompiler(raw)
+	if err != nil {
+		panic(err)
+	}
+	return f
+}
+
 func newHTTPDecoderOptions(fs []HTTPDecoderOption) *httpDecoderOptions {
 	o := &httpDecoderOptions{
 		allowedContentTypes: []string{
