@@ -1,15 +1,17 @@
 package jsonschemax
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ory/jsonschema/v3"
-	"github.com/pkg/errors"
 	"math/big"
 	"regexp"
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/ory/jsonschema/v3"
+	"github.com/pkg/errors"
 )
 
 type (
@@ -90,12 +92,33 @@ type Path struct {
 	CustomProperties map[string]interface{}
 }
 
+// ListPathsWithRecursion will follow circular references until maxRecursion is reached, without
+// returning an error.
+func ListPathsWithRecursion(ctx context.Context, ref string, compiler *jsonschema.Compiler, maxRecursion uint8) ([]Path, error) {
+	return runPathsFromCompiler(ctx, ref, compiler, int16(maxRecursion), false)
+}
+
 // ListPathsWithInitializedSchemaAndArraysIncluded loads the paths from the schema without compiling it.
 //
 // You MUST ensure that the compiler was using `ExtractAnnotations = true`.
 // Includes arrays with `#`.
 func ListPathsWithInitializedSchemaAndArraysIncluded(schema *jsonschema.Schema) ([]Path, error) {
 	return runPaths(schema, -1, true)
+}
+
+func runPathsFromCompiler(ctx context.Context, ref string, compiler *jsonschema.Compiler, maxRecursion int16, includeArrays bool) ([]Path, error) {
+	if compiler == nil {
+		compiler = jsonschema.NewCompiler()
+	}
+
+	compiler.ExtractAnnotations = true
+
+	schema, err := compiler.Compile(ctx, ref)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return runPaths(schema, maxRecursion, includeArrays)
 }
 
 func runPaths(schema *jsonschema.Schema, maxRecursion int16, includeArrays bool) ([]Path, error) {
