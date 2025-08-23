@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"reflect"
 	"strings"
 	"sync"
@@ -468,4 +469,22 @@ func (p *Provider) TracingConfig(serviceName string) *otelx.Config {
 			},
 		},
 	}
+}
+
+func (p *Provider) RequestURIF(path string, fallback *url.URL) *url.URL {
+	p.l.RLock()
+	defer p.l.RUnlock()
+
+	switch t := p.Get(path).(type) {
+	case *url.URL:
+		return t
+	case url.URL:
+		return &t
+	case string:
+		if parsed, err := url.ParseRequestURI(t); err == nil {
+			return parsed
+		}
+	}
+
+	return fallback
 }
