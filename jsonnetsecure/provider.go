@@ -22,6 +22,13 @@ type (
 		pool          Pool
 	}
 
+	// DefaultProvider provides a secure VM by calling the currently
+	// running the current binary with the provided subcommand.
+	DefaultProvider struct {
+		Subcommand string
+		Pool       Pool
+	}
+
 	vmOptions struct {
 		jsonnetBinaryPath string
 		args              []string
@@ -69,5 +76,17 @@ func (p *TestProvider) JsonnetVM(ctx context.Context) (VM, error) {
 	return MakeSecureVM(
 		WithProcessPool(p.pool),
 		WithJsonnetBinary(p.jsonnetBinary),
+	), nil
+}
+
+func (p *DefaultProvider) JsonnetVM(ctx context.Context) (VM, error) {
+	self, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	return MakeSecureVM(
+		WithJsonnetBinary(self),
+		WithProcessArgs(p.Subcommand),
+		WithProcessPool(p.Pool),
 	), nil
 }
